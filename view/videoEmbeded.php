@@ -34,7 +34,9 @@ AVideoPlugin::getEmbed($video['id']);
 if (empty($video)) {
     forbiddenPage("Video not found");
 }
-
+if(empty($video['users_id'])){
+    $video['users_id'] = User::getId();
+}
 if (empty($customizedAdvanced)) {
     $customizedAdvanced = AVideoPlugin::getObjectDataIfEnabled('CustomizeAdvanced');
 }
@@ -55,11 +57,18 @@ $imgw = 1280;
 $imgh = 720;
 
 if ($video['type'] !== "pdf") {
-    $source = Video::getSourceFile($video['filename']);
-    $img = $source['url'];
-    $data = getimgsize($source['path']);
-    $imgw = $data[0];
-    $imgh = $data[1];
+    if(!empty($video['filename'])){
+        $source = Video::getSourceFile($video['filename']);
+        $img = $source['url'];
+        $data = getimgsize($source['path']);
+        $imgw = $data[0];
+        $imgh = $data[1];
+    }else{
+        $source = array();
+        $img = "";
+        $imgw = 0;
+        $imgh = 0;
+    }
 } else if (($video['type'] !== "audio") && ($video['type'] !== "linkAudio")) {
     $source = Video::getSourceFile($video['filename']);
     $img = $source['url'];
@@ -69,15 +78,21 @@ if ($video['type'] !== "pdf") {
 } else {
     $img = "{$global['webSiteRootURL']}view/img/audio_wave.jpg";
 }
-$images = Video::getImageFromFilename($video['filename']);
-$poster = $images->poster;
-if (!empty($images->posterPortrait)) {
-    $img = $images->posterPortrait;
-    $data = getimgsize($source['path']);
-    $imgw = $data[0];
-    $imgh = $data[1];
+if(!empty($video['filename'])){
+    $images = Video::getImageFromFilename($video['filename']);
+    $poster = $images->poster;
+    if (!empty($images->posterPortrait)) {
+        $img = $images->posterPortrait;
+        $data = getimgsize($source['path']);
+        $imgw = $data[0];
+        $imgh = $data[1];
+    }
+}else{
+    $images = array();
+    $poster = "";
+    $imgw = 0;
+    $imgh = 0;
 }
-
 require_once $global['systemRootPath'] . 'plugin/AVideoPlugin.php';
 /*
  * Swap aspect ratio for rotated (vvs) videos
@@ -92,10 +107,12 @@ require_once $global['systemRootPath'] . 'plugin/AVideoPlugin.php';
 $vjsClass = "";
 $obj = new Video("", "", $video['id']);
 $resp = $obj->addView();
-if (($video['type'] !== "audio") && ($video['type'] !== "linkAudio")) {
-    $poster = "{$global['webSiteRootURL']}videos/{$video['filename']}.jpg";
-} else {
-    $poster = "{$global['webSiteRootURL']}view/img/audio_wave.jpg";
+if(!empty($video['filename'])){
+    if (($video['type'] !== "audio") && ($video['type'] !== "linkAudio")) {
+        $poster = "{$global['webSiteRootURL']}videos/{$video['filename']}.jpg";
+    } else {
+        $poster = "{$global['webSiteRootURL']}view/img/audio_wave.jpg";
+    }
 }
 
 //https://.../vEmbed/527?modestbranding=1&showinfo=0&autoplay=1&controls=0&loop=1&mute=1&t=0
@@ -135,6 +152,11 @@ if (!empty($_GET['t'])) {
 
 $playerSkinsO = AVideoPlugin::getObjectData("PlayerSkins");
 $disableEmbedTopInfo = $playerSkinsO->disableEmbedTopInfo;
+
+if(isset($_REQUEST['showinfo']) && empty($_REQUEST['showinfo'])){
+    $disableEmbedTopInfo = true;
+    $modestbranding = true;
+}
 
 $url = Video::getLink($video['id'], $video['clean_title'], false);
 $title = str_replace('"', '', $video['title']) . ' - ' . $config->getWebSiteTitle();
@@ -382,7 +404,7 @@ if (User::hasBlockedUser($video['users_id'])) {
         $isAudio = 1;
         ?>
         <audio style="width: 100%; height: 100%;"  id="mainVideo" <?php echo $controls; ?> <?php echo $loop; ?> class="center-block video-js vjs-default-skin vjs-big-play-centered"  id="mainVideo"  data-setup='{ "fluid": true }'
-               poster="<?php echo $global['webSiteRootURL']; ?>view/img/recorder.gif">
+                poster="<?php echo $poster; ?>">
                    <?php
                    $ext = "";
                    if (file_exists($global['systemRootPath'] . "videos/" . $video['filename'] . ".ogg")) {

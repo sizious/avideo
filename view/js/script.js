@@ -677,7 +677,7 @@ function playNext(url) {
             });
         }
     } else if (isPlayerLoop()) {
-        $.toast("Looping video");
+        avideoToast("Looping video");
         userIsControling = false;
         playerPlayTimeout = setTimeout(function () {
             playerPlay(currentTime);
@@ -861,8 +861,27 @@ function avideoAlert(title, msg, type) {
     }
 }
 
+function _avideoToast(msg, icon) {
+    var options = {text:msg, hideAfter:7000};
+    if(icon){
+        options.icon = icon;
+    }
+    $.toast(options);
+}
 function avideoToast(msg) {
-    $.toast(msg);
+    _avideoToast(msg, null);
+}
+function avideoToastInfo(msg) {
+    _avideoToast(msg, 'info');
+}
+function avideoToastError(msg) {
+    _avideoToast(msg, 'error');
+}
+function avideoToastSuccess(msg) {
+    _avideoToast(msg, 'success');
+}
+function avideoToastWarning(msg) {
+    _avideoToast(msg, 'warning');
 }
 
 function avideoAlertAJAXHTML(url) {
@@ -987,8 +1006,10 @@ $(document).ready(function () {
     } catch (e) {
 
     }
-    
-    setInterval(function(){setToolTips();},1000);
+
+    setInterval(function () {
+        setToolTips();
+    }, 1000);
 
     $(".thumbsImage").on("mouseenter", function () {
         gifId = $(this).find(".thumbsGIF").attr('id');
@@ -1074,7 +1095,17 @@ $(document).ready(function () {
     setPlayerListners();
 
     $('.duration:contains("00:00:00"), .duration:contains("EE:EE:EE")').hide();
+    
+    setInterval(function () {
+        if (typeof conn != 'undefined') {
+            if (avideoSocketIsActive()) {
+                $(".socketStatus").removeClass('disconnected');
+            } else {
+                $(".socketStatus").addClass('disconnected');
+            }
+        }
 
+    }, 1000);
 });
 
 function validURL(str) {
@@ -1085,6 +1116,10 @@ function validURL(str) {
             '(\\?[;&a-z\\d%_.~+=-]*)?' + // query string
             '(\\#[-a-z\\d_]*)?$', 'i'); // fragment locator
     return !!pattern.test(str);
+}
+
+function isURL(url) {
+    return validURL(url);
 }
 
 function startTimer(duration, selector) {
@@ -1155,7 +1190,7 @@ function getCroppie(uploadCropObject, callback, width, height) {
 }
 
 function setToolTips() {
-    if(!$('[data-toggle="tooltip"]').not('.alreadyTooltip').length){
+    if (!$('[data-toggle="tooltip"]').not('.alreadyTooltip').length) {
         return false;
     }
     $('[data-toggle="tooltip"]').not('.alreadyTooltip').tooltip({container: 'body'});
@@ -1166,4 +1201,12 @@ function setToolTips() {
         }, 2000);
     });
     $('[data-toggle="tooltip"]').addClass('alreadyTooltip');
+}
+
+function avideoSocketIsActive() {
+    if (typeof isSocketActive == 'function') {
+        return isSocketActive();
+    } else {
+        return false;
+    }
 }

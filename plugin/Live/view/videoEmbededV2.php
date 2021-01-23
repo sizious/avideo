@@ -20,6 +20,7 @@ if (!empty($_GET['c'])) {
 $customizedAdvanced = AVideoPlugin::getObjectDataIfEnabled('CustomizeAdvanced');
 
 $livet =  LiveTransmition::getFromDbByUserName($_GET['u']);
+$getLiveKey = array('key'=>$livet['key'], 'live_servers_id'=> Live::getLiveServersIdRequest());
 $uuid = LiveTransmition::keyNameFix($livet['key']);
 $p = AVideoPlugin::loadPlugin("Live");
 
@@ -114,7 +115,7 @@ $poster = Live::getPosterImage($livet['users_id'], $_REQUEST['live_servers_id'])
                         <?php
                         $streamName = $uuid;
                         include $global['systemRootPath'] . 'plugin/Live/view/onlineLabel.php';
-                        include $global['systemRootPath'] . 'plugin/Live/view/onlineUsers.php';
+                        echo getLiveUsersLabel();
                         ?>
                     </div>
                 </div>

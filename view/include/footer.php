@@ -9,6 +9,7 @@ if (thereIsAnyUpdate()) {
     hideAfter: 20000
 });";
 }
+/*
 if ($version = thereIsAnyRemoteUpdate()) {
     $footerjs .= "$.toast({
     heading: 'Update available',
@@ -18,6 +19,8 @@ if ($version = thereIsAnyRemoteUpdate()) {
     hideAfter: 20000
 });";
 }
+ * 
+ */
 if (empty($advancedCustom)) {
     $advancedCustom = AVideoPlugin::getObjectData("CustomizeAdvanced");
 }
@@ -167,7 +170,7 @@ if (!empty($advancedCustom->footerHTMLCode->value)) {
 </script>
 <!--
 <?php
-if (User::isAdmin()) {
+if (User::isAdmin() && !empty($getCachesProcessed) && is_array($getCachesProcessed)) {
     arsort($getCachesProcessed);
     echo "Total cached methods " . PHP_EOL;
     foreach ($getCachesProcessed as $key => $value) {

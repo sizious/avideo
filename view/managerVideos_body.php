@@ -1761,7 +1761,7 @@ if (CustomizeUser::canDownloadVideos()) {
 }
 if (User::isAdmin()) {
     ?>
-                                                            download += '<button type="button" class="btn btn-default btn-xs btn-block" onclick="whyICannotDownload(' + row.id + ');"  data-toggle="tooltip" title="<?php echo str_replace("'", "\\'", __("Why I cannot download?")); ?>"><span class="fa-stack" style="font-size: 0.8em;"><i class="fa fa-download fa-stack-1x"></i><i class="fas fa-ban fa-stack-2x" style="color:Tomato"></i></span></button>';
+                                                            download += '<button type="button" class="btn btn-default btn-xs btn-block" onclick="whyICannotDownload(' + row.id + ');"  data-toggle="tooltip" title="<?php echo str_replace("'", "\\'", __("Download disabled")); ?>"><span class="fa-stack" style="font-size: 0.8em;"><i class="fa fa-download fa-stack-1x"></i><i class="fas fa-ban fa-stack-2x" style="color:Tomato"></i></span></button>';
     <?php
 }
 ?>
@@ -1943,9 +1943,10 @@ if (AVideoPlugin::isEnabledByName('PlayLists')) {
                                                     return ret;
                                                 },
                                             }).on("loaded.rs.jquery.bootgrid", function () {
-
-
-                                                $('.videoPlaylist').each(function (i, obj) {
+                                                if($('.videoPlaylist').length>50){
+                                                    console.log("You are listing too many videos we will not process the playlist");
+                                                }else{
+                                                    $('.videoPlaylist').each(function (i, obj) {
                                                     var $this = this;
                                                     var videos_id = $($this).attr('videos_id');
                                                     //$(this).html($(this).attr('videos_id'));
@@ -1960,12 +1961,13 @@ if (AVideoPlugin::isEnabledByName('PlayLists')) {
                                                                     continue;
                                                                 }
 
-                                                                lists += '<div class="material-small material-switch"><input onchange="saveVideoOnPlaylist(' + videos_id + ', $(this).is(\':checked\'), ' + response[x].id + ')" data-toggle="toggle" type="checkbox" id="playlistVideo' + videos_id + "_" + response[x].id + '" value="1" ' + (response[x].isOnPlaylist ? "checked" : "") + ' videos_id="' + videos_id + '" ><label for="playlistVideo' + videos_id + "_" + response[x].id + '" class="label-primary"></label>  ' + response[x].name + '</div>';
+                                                                lists += '<div class="material-small material-switch"><input onchange="saveVideoOnPlaylist(' + videos_id + ', $(this).is(\':checked\'), ' + response[x].id + ')" data-toggle="toggle" type="checkbox" id="playlistVideo' + videos_id + "_" + response[x].id + '" value="1" ' + (response[x].isOnPlaylist ? "checked" : "") + ' videos_id="' + videos_id + '" ><label for="playlistVideo' + videos_id + "_" + response[x].id + '" class="label-primary"></label>  ' + response[x].name_translated + '</div>';
                                                             }
                                                             $($this).html(lists);
                                                         }
                                                     });
                                                 });
+                                                }
                                                 /* Executes after data is loaded and rendered */
                                                 grid.find(".command-edit").on("click", function (e) {
                                                     waitToSubmit = true;

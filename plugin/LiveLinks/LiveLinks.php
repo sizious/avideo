@@ -45,7 +45,7 @@ class LiveLinks extends PluginAbstract {
     }
 
     public function getPluginVersion() {
-        return "3.1";   
+        return "3.2";   
     }
 
     public function canAddLinks() {
@@ -116,18 +116,15 @@ class LiveLinks extends PluginAbstract {
             '_link_',
             '_imgJPG_',
             '_imgGIF_',
-            '_class_'
+            '_class_',
+            '_total_on_live_links_id_'
         );
         $content = file_get_contents($filename);
         $contentExtra = file_get_contents($filenameExtra);
         $contentExtraVideoPage = file_get_contents($filenameExtraVideoPage);
         
-        if(empty($_GET['requestComesFromVideoPage'])){
-            $regex = "/".addcslashes($global['webSiteRootURL'],"/")."video\/.*/";
-            $requestComesFromVideoPage = preg_match($regex, @$_SERVER["HTTP_REFERER"]);
-        }else{
-            $requestComesFromVideoPage = 1;
-        }
+        $liveUsers = AVideoPlugin::isEnabledByName('LiveUsers');
+        
         foreach ($row as $value) {
             
             if($value['type']=='unlisted'){
@@ -149,7 +146,8 @@ class LiveLinks extends PluginAbstract {
                 self::getLink($value['id']),
                 '<img src="'."{$global['webSiteRootURL']}plugin/LiveLinks/getImage.php?id={$value['id']}&format=jpg".'" class="thumbsJPG img-responsive" height="130">',
                 empty($obj->disableGifThumbs)?('<img src="'."{$global['webSiteRootURL']}plugin/LiveLinks/getImage.php?id={$value['id']}&format=gif".'" style="position: absolute; top: 0px; height: 0px; width: 0px; display: none;" class="thumbsGIF img-responsive" height="130">'):"",
-                ($requestComesFromVideoPage)?"col-xs-6":"col-lg-2 col-md-4 col-sm-4 col-xs-6"
+                (isVideo())?"col-xs-6":"col-lg-2 col-md-4 col-sm-4 col-xs-6",
+                ($liveUsers?getLiveUsersLabelLiveLinks($value['id']):'')
             );
 
             $newContent = str_replace($search, $replace, $content);
@@ -297,7 +295,8 @@ class LiveLinks extends PluginAbstract {
         }
 
         if (!empty($_GET['catName'])) {
-            $sql .= " AND (c.clean_name = '{$_GET['catName']}' OR c.parentId IN (SELECT cs.id from categories cs where cs.clean_name =  '{$_GET['catName']}' ))";
+            $catName = $global['mysqli']->real_escape_string($_GET['catName']);
+            $sql .= " AND (c.clean_name = '{$catName}' OR c.parentId IN (SELECT cs.id from categories cs where cs.clean_name =  '{$catName}' ))";
         }
 
         if (!empty($_GET['modified'])) {
@@ -311,17 +310,18 @@ class LiveLinks extends PluginAbstract {
             if (!empty($_GET['limitOnceToOne'])) {
                 $sql .= " LIMIT 1";
                 unset($_GET['limitOnceToOne']);
-            }
-            $_REQUEST['rowCount'] = getRowCount();
-            if (!empty($_REQUEST['rowCount'])) {
-                $sql .= " LIMIT {$_REQUEST['rowCount']}";
-            } else {
-                _error_log("getAllVideos without limit " . json_encode(debug_backtrace()));
-                if (empty($global['limitForUnlimitedVideos'])) {
-                    $global['limitForUnlimitedVideos'] = 100;
-                }
-                if ($global['limitForUnlimitedVideos'] > 0) {
-                    $sql .= " LIMIT {$global['limitForUnlimitedVideos']}";
+            }else{
+                $_REQUEST['rowCount'] = getRowCount();
+                if (!empty($_REQUEST['rowCount'])) {
+                    $sql .= " LIMIT {$_REQUEST['rowCount']}";
+                } else {
+                    _error_log("getAllVideos without limit " . json_encode(debug_backtrace()));
+                    if (empty($global['limitForUnlimitedVideos'])) {
+                        $global['limitForUnlimitedVideos'] = 100;
+                    }
+                    if ($global['limitForUnlimitedVideos'] > 0) {
+                        $sql .= " LIMIT {$global['limitForUnlimitedVideos']}";
+                    }
                 }
             }
         }

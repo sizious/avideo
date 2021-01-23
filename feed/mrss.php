@@ -5,17 +5,16 @@ echo'<?xml version="1.0" encoding="UTF-8"?>';
   xmlns:georss="http://www.georss.org/georss"
   xmlns:gml="http://www.opengis.net/gml">
     <channel>
-        <title><?php echo $title; ?></title>
-        <description><?php echo $description; ?></description>
+        <title><?php echo feedText($title); ?></title>
+        <description><?php echo feedText($description); ?></description>
         <link><?php echo $link; ?></link>
-
         <image>
-        <title><?php echo $title; ?></title>
-        <url><?php echo $logo; ?></url>
-        <link><?php echo $link; ?></link>
-        <width>144</width>
-        <height>40</height>
-        <description>AVideo version rss</description>
+            <title><?php echo feedText($title); ?></title>
+            <url><?php echo $logo; ?></url>
+            <link><?php echo $link; ?></link>
+            <width>144</width>
+            <height>40</height>
+            <description>AVideo version rss</description>
         </image>
 
         <?php
@@ -33,15 +32,15 @@ echo'<?xml version="1.0" encoding="UTF-8"?>';
                     $value['mime'] = "video/{$path_parts['extension']}";
                     $value['size'] = filesize($value['path']);
                     // replace to validate
-                    $value['url'] = str_replace("https://", "http://", $value['url']);
+                    $value['url'] = str_replace("http://", "https://", $value['url']);
                     $enclosure = '<enclosure url="' . $value['url'] . '" length="' . $value['size'] . '" type="' . $value['mime'] . '" />';
                     break;
                 }
             }
             ?>
             <item>
-                <title><?php echo htmlspecialchars($row['title']); ?></title>
-                <description><![CDATA[<?php echo strip_tags(br2nl($row['description'])); ?>]]></description>
+                <title><?php echo feedText($row['title']); ?></title>
+                <description><?php echo feedText($row['description']); ?></description>
                 <link> <?php echo Video::getLink($row['id'], $row['clean_title']); ?></link>
                 <?php echo $enclosure; ?>
                 <pubDate><?php echo date('r', strtotime($row['created'])); ?></pubDate>

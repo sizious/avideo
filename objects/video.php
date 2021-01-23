@@ -1,6 +1,5 @@
 <?php
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'autoload.php';
-
 global $global, $config, $videosPaths;
 
 if (!isset($global['systemRootPath'])) {
@@ -748,7 +747,8 @@ if (!class_exists('Video')) {
             }
 
             if (!empty($_GET['catName'])) {
-                $sql .= " AND (c.clean_name = '{$_GET['catName']}' OR c.parentId IN (SELECT cs.id from categories cs where cs.clean_name = '{$_GET['catName']}' ))";
+                $catName = $global['mysqli']->real_escape_string($_GET['catName']);
+                $sql .= " AND (c.clean_name = '{$catName}' OR c.parentId IN (SELECT cs.id from categories cs where cs.clean_name = '{$catName}' ))";
             }
 
             if (empty($id) && !empty($_GET['channelName'])) {
@@ -763,14 +763,17 @@ if (!class_exists('Video')) {
             }
 
             if (!empty($_POST['searchPhrase'])) {
+                $searchFieldsNames = array('v.title', 'v.description', 'c.name', 'c.description');
                 if (AVideoPlugin::isEnabledByName("VideoTags")) {
                     $sql .= " AND (";
                     $sql .= "v.id IN (select videos_id FROM tags_has_videos LEFT JOIN tags as t ON tags_id = t.id AND t.name LIKE '%{$_POST['searchPhrase']}%' WHERE t.id is NOT NULL)";
-                    $sql .= BootGrid::getSqlSearchFromPost(array('v.title', 'v.description', 'c.name', 'c.description'), "OR");
+                    $sql .= BootGrid::getSqlSearchFromPost($searchFieldsNames, "OR");
                     $sql .= ")";
                 } else {
-                    $sql .= BootGrid::getSqlSearchFromPost(array('v.title', 'v.description', 'c.name', 'c.description'));
+                    $sql .= BootGrid::getSqlSearchFromPost($searchFieldsNames);
                 }
+                $searchFieldsNames = array('v.title');
+                $sql .= self::getFullTextSearch($searchFieldsNames, $_POST['searchPhrase']);
             }
             if (!$ignoreGroup) {
                 $arrayNotIN = AVideoPlugin::getAllVideosExcludeVideosIDArray();
@@ -1061,7 +1064,8 @@ if (!class_exists('Video')) {
             }
 
             if (!empty($_GET['catName'])) {
-                $sql .= " AND (c.clean_name = '{$_GET['catName']}' OR c.parentId IN (SELECT cs.id from categories cs where cs.clean_name = '{$_GET['catName']}' ))";
+                $catName = $global['mysqli']->real_escape_string($_GET['catName']);
+                $sql .= " AND (c.clean_name = '{$catName}' OR c.parentId IN (SELECT cs.id from categories cs where cs.clean_name = '{$catName}' ))";
             }
 
             if (!empty($_GET['search'])) {
@@ -1074,14 +1078,19 @@ if (!class_exists('Video')) {
             }
 
             if (!empty($_POST['searchPhrase'])) {
+                $searchFieldsNames = array('v.title', 'v.description', 'c.name', 'c.description');
                 if (AVideoPlugin::isEnabledByName("VideoTags")) {
                     $sql .= " AND (";
                     $sql .= "v.id IN (select videos_id FROM tags_has_videos LEFT JOIN tags as t ON tags_id = t.id AND t.name LIKE '%{$_POST['searchPhrase']}%' WHERE t.id is NOT NULL)";
-                    $sql .= BootGrid::getSqlSearchFromPost(array('v.title', 'v.description', 'c.name', 'c.description'), "OR");
+                    $sql .= BootGrid::getSqlSearchFromPost($searchFieldsNames, "OR");
+                    $searchFieldsNames = array('v.title');         
+                    $sql .= self::getFullTextSearch($searchFieldsNames, $_POST['searchPhrase']);
                     $sql .= ")";
                 } else {
-                    $sql .= BootGrid::getSqlSearchFromPost(array('v.title', 'v.description', 'c.name', 'c.description'));
-                }
+                    $sql .= BootGrid::getSqlSearchFromPost($searchFieldsNames);
+                    $searchFieldsNames = array('v.title');         
+                    $sql .= self::getFullTextSearch($searchFieldsNames, $_POST['searchPhrase']);
+                }      
             }
 
             $sql .= AVideoPlugin::getVideoWhereClause();
@@ -1120,17 +1129,18 @@ if (!class_exists('Video')) {
                 if (!empty($_GET['limitOnceToOne'])) {
                     $sql .= " LIMIT 1";
                     unset($_GET['limitOnceToOne']);
-                }
-                $_REQUEST['rowCount'] = getRowCount();
-                if (!empty($_REQUEST['rowCount'])) {
-                    $sql .= " LIMIT {$_REQUEST['rowCount']}";
-                } else {
-                    _error_log("getAllVideos without limit " . json_encode(debug_backtrace()));
-                    if (empty($global['limitForUnlimitedVideos'])) {
-                        $global['limitForUnlimitedVideos'] = 100;
-                    }
-                    if ($global['limitForUnlimitedVideos'] > 0) {
-                        $sql .= " LIMIT {$global['limitForUnlimitedVideos']}";
+                }else{
+                    $_REQUEST['rowCount'] = getRowCount();
+                    if (!empty($_REQUEST['rowCount'])) {
+                        $sql .= " LIMIT {$_REQUEST['rowCount']}";
+                    } else {
+                        _error_log("getAllVideos without limit " . json_encode(debug_backtrace()));
+                        if (empty($global['limitForUnlimitedVideos'])) {
+                            $global['limitForUnlimitedVideos'] = 100;
+                        }
+                        if ($global['limitForUnlimitedVideos'] > 0) {
+                            $sql .= " LIMIT {$global['limitForUnlimitedVideos']}";
+                        }
                     }
                 }
             }
@@ -1479,7 +1489,8 @@ if (!class_exists('Video')) {
                 $sql .= " AND v.users_id = '{$showOnlyLoggedUserVideos}'";
             }
             if (!empty($_GET['catName'])) {
-                $sql .= " AND c.clean_name = '{$_GET['catName']}'";
+                $catName = $global['mysqli']->real_escape_string($_GET['catName']);
+                $sql .= " AND c.clean_name = '{$catName}'";
             }
             if (!empty($_SESSION['type'])) {
                 if ($_SESSION['type'] == 'video') {
@@ -1505,13 +1516,18 @@ if (!class_exists('Video')) {
             $sql .= AVideoPlugin::getVideoWhereClause();
 
             if (!empty($_POST['searchPhrase'])) {
+                $searchFieldsNames = array('v.title', 'v.description', 'c.name', 'c.description');
                 if (AVideoPlugin::isEnabledByName("VideoTags")) {
                     $sql .= " AND (";
                     $sql .= "v.id IN (select videos_id FROM tags_has_videos LEFT JOIN tags as t ON tags_id = t.id AND t.name LIKE '%{$_POST['searchPhrase']}%' WHERE t.id is NOT NULL)";
-                    $sql .= BootGrid::getSqlSearchFromPost(array('v.title', 'v.description', 'c.name', 'c.description'), "OR");
+                    $sql .= BootGrid::getSqlSearchFromPost($searchFieldsNames, "OR");
+                    $searchFieldsNames = array('v.title');         
+                    $sql .= self::getFullTextSearch($searchFieldsNames, $_POST['searchPhrase']);
                     $sql .= ")";
                 } else {
-                    $sql .= BootGrid::getSqlSearchFromPost(array('v.title', 'v.description', 'c.name', 'c.description'));
+                    $sql .= BootGrid::getSqlSearchFromPost($searchFieldsNames);
+                    $searchFieldsNames = array('v.title');         
+                    $sql .= self::getFullTextSearch($searchFieldsNames, $_POST['searchPhrase']);
                 }
             }
 
@@ -2991,7 +3007,10 @@ if (!class_exists('Video')) {
                     if (empty($resolution)) {
                         $name2 = "Video:::getHigestResolution::getResolution({$value["path"]})";
                         TimeLogStart($name2);
-                        $resolution = self::getResolution($value["path"]);
+                        $resolution = self::getResolutionFromFilename($value["path"]); // this is faster
+                        if($resolution){
+                            $resolution = self::getResolution($value["path"]);
+                        }
                         TimeLogEnd($name2, __LINE__);
                     }
                     if (!isset($return['resolution']) || $resolution > $return['resolution']) {
@@ -3020,6 +3039,7 @@ if (!class_exists('Video')) {
                     $resolution = intval($matches[1]);
                 }
             }
+            
             //var_dump($filename, $resolution);exit;
             return $resolution;
         }
@@ -3979,7 +3999,7 @@ if (!class_exists('Video')) {
             return array('evideo' => $evideo, 'video' => $video);
         }
 
-        private function getBlockedUsersIdsArray($users_id = 0)
+        private static function getBlockedUsersIdsArray($users_id = 0)
         {
             if (empty($users_id)) {
                 $users_id = intval(User::getId());
@@ -4001,7 +4021,11 @@ if (!class_exists('Video')) {
         {
             $vType = $video['type'];
             if ($vType == 'linkVideo') {
-                $vType = isHTMLPage($video['videoLink']) ? 'embed' : 'video';
+                if(!preg_match('/m3u8/', $video['videoLink'])){                 
+                    $vType = isHTMLPage($video['videoLink']) ? 'embed' : 'video';
+                }else{
+                    $vType = 'video';
+                }
             } elseif ($vType == 'live') {
                 $vType = '../../plugin/Live/view/liveVideo';
             } elseif ($vType == 'linkAudio') {
@@ -4011,6 +4035,22 @@ if (!class_exists('Video')) {
                 $vType = 'video';
             }
             return $vType;
+        }
+        
+        private static function getFullTextSearch($columnsArray, $search, $connection = "OR"){
+            global $global;
+            $search = $global['mysqli']->real_escape_string(xss_esc($search));
+            if(empty($columnsArray) || empty($search)){
+                return "";
+            }
+            $sql = "(";
+            $matches = array();
+            foreach ($columnsArray as $value) {
+                $matches[] = " (MATCH({$value}) AGAINST ('{$search}' IN NATURAL LANGUAGE MODE)) ";
+            }
+            $sql .= implode(" OR ", $matches);
+            $sql .= ")";
+            return "{$connection} {$sql}";
         }
     }
 }

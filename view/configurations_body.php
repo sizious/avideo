@@ -76,11 +76,9 @@ if (User::isAdmin()) {
 
                                     </div>
                                     <?php
-                                    foreach (glob("{$global['systemRootPath']}view/css/custom/*.css") as $filename) {
-                                        //echo "$filename size " . filesize($filename) . "\n";
-                                        $file = basename($filename);         // $file is set to "index.php"
-                                        $fileEx = basename($filename, ".css"); // $file is set to "index"
-                                        $savedTheme = $config->getTheme();
+                                    $themes = getThemes();
+                                    $savedTheme = $config->getTheme();
+                                    foreach ($themes as $fileEx) {
                                         if ($fileEx == $savedTheme) {
                                             ?>
                                             <script>
@@ -423,16 +421,6 @@ if (User::isAdmin()) {
                                                     <button class="btn btn-primary" id="generateSiteMap">
                                                         <i class="fa fa-sitemap"></i> <?php echo __("Generate Sitemap"); ?>
                                                     </button>
-                                                    <?php
-                                                    if (!is_writable($sitemapFile)) {
-                                                        ?>
-                                                        <div class="alert alert-danger">
-                                                            the sitemap file must be writable
-                                                            <code>sudo chmod 777 <?php echo $sitemapFile; ?></code>
-                                                        </div>    
-                                                        <?php
-                                                    }
-                                                    ?>
                                                 </div>
                                             </div>
                                             <div class="form-group">
