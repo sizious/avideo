@@ -9,15 +9,15 @@
 global $global;
 require_once $global['systemRootPath'] . 'plugin/Plugin.abstract.php';
 
-require_once $global['systemRootPath'] . 'plugin/Socket/functions.php';
+require_once $global['systemRootPath'] . 'plugin/YPTSocket/functions.php';
 
-class Socket extends PluginAbstract {
+class YPTSocket extends PluginAbstract {
 
     public function getDescription() {
         global $global;
         $desc = getSocketConnectionLabel();
         $desc .= "Socket Plugin, WebSockets allow for a higher amount of efficiency compared to REST because they do not require the HTTP request/response overhead for each message sent and received<br>";
-        $desc .= "<code>nohup php {$global['systemRootPath']}plugin/Socket/server.php &</code>";
+        $desc .= "<code>sudo nohup php {$global['systemRootPath']}plugin/YPTSocket/server.php &</code>";
         $help = "<br>run this command start the server <small><a href='https://github.com/WWBN/AVideo/wiki/Socket-Plugin' target='__blank'><i class='fas fa-question-circle'></i> Help</a></small>";
 
         //$desc .= $this->isReadyLabel(array('YPTWallet'));
@@ -25,11 +25,11 @@ class Socket extends PluginAbstract {
     }
 
     public function getName() {
-        return "Socket";
+        return "YPTSocket";
     }
 
     public function getUUID() {
-        return "Socket-5ee8405eaaa16";
+        return "YPTSocket-5ee8405eaaa16";
     }
 
     public function getPluginVersion() {
@@ -37,7 +37,7 @@ class Socket extends PluginAbstract {
     }
     
     public static function getServerVersion() {
-        return "2.1";
+        return "2.3";
     }
 
     public function updateScript() {
@@ -92,7 +92,16 @@ class Socket extends PluginAbstract {
 
     public static function getSocketJS() {
         global $global;
-        include $global['systemRootPath'] . 'plugin/Socket/footer.php';
+        include $global['systemRootPath'] . 'plugin/YPTSocket/footer.php';
+    }
+    
+    public static function sendAsync($msg, $callbackJSFunction = "", $users_id = "", $send_to_uri_pattern = "") {
+        global $global;
+        if(!is_string($msg)){
+            $msg = json_encode($msg);
+        }
+        $command = "php {$global['systemRootPath']}plugin/YPTSocket/send.json.php '$msg' '$callbackJSFunction' '$users_id' '$send_to_uri_pattern'";
+        execAsync($command);
     }
 
     public static function send($msg, $callbackJSFunction = "", $users_id = "", $send_to_uri_pattern = "") {
@@ -127,6 +136,7 @@ class Socket extends PluginAbstract {
                 //echo "Received: {$msg}\n";
                 //$conn->close();
                 $SocketSendResponseObj->error = false;
+                $SocketSendResponseObj->msg = $msg;
             });
 
             foreach ($SocketSendUsers_id as $users_id) {
@@ -147,7 +157,7 @@ class Socket extends PluginAbstract {
 
     public static function getWebSocketURL($isCommandLine=false) {
         global $global;
-        $socketobj = AVideoPlugin::getDataObject("Socket");
+        $socketobj = AVideoPlugin::getDataObject("YPTSocket");
         $address = $socketobj->host;
         $port = $socketobj->port;
         $protocol = "ws";

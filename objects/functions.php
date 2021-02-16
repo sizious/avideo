@@ -3,6 +3,7 @@ $AVideoMobileAPP_UA = "AVideoMobileApp";
 $AVideoEncoder_UA = "AVideoEncoder";
 $AVideoStreamer_UA = "AVideoStreamer";
 $AVideoStorage_UA = "AVideoStorage";
+$mysql_connect_was_closed = 1;
 
 function forbiddenWords($text) {
     global $global;
@@ -812,8 +813,13 @@ function parseVideos($videoString = null, $autoplay = 0, $loop = 0, $mute = 0, $
     $final_query_string_array = array_merge($new_qs_parsed, $other_qs_parsed);
     $final_query_string = http_build_query($final_query_string_array);
     // Now, our final URL:
-    $new_url = $url_parsed['scheme']
-            . '://'
+    if (empty($url_parsed['scheme'])) {
+        $scheme = '';
+    } else {
+        $scheme = "{$url_parsed['scheme']}:";
+    }
+    $new_url = $scheme
+            . '//'
             . $url_parsed['host']
             . $url_parsed['path']
             . '?'
@@ -2440,7 +2446,12 @@ function removeQueryStringParameter($url, $varname) {
     $path = isset($parsedUrl['path']) ? $parsedUrl['path'] : '';
     $query = !empty($query) ? '?' . http_build_query($query) : '';
 
-    return $parsedUrl['scheme'] . '://' . $parsedUrl['host'] . $path . $query;
+    if (empty($parsedUrl['scheme'])) {
+        $scheme = '';
+    } else {
+        $scheme = "{$parsedUrl['scheme']}:";
+    }
+    return $scheme . '//' . $parsedUrl['host'] . $path . $query;
 }
 
 /**
@@ -2465,7 +2476,17 @@ function addQueryStringParameter($url, $varname, $value) {
     $path = isset($parsedUrl['path']) ? $parsedUrl['path'] : '';
     $query = !empty($query) ? '?' . http_build_query($query) : '';
 
-    return $parsedUrl['scheme'] . '://' . $parsedUrl['host'] . $path . $query;
+    $port = "";
+    if (!empty($parsedUrl['port']) && $parsedUrl['port'] != '80') {
+        $port = ":{$parsedUrl['port']}";
+    }
+
+    if (empty($parsedUrl['scheme'])) {
+        $scheme = '';
+    } else {
+        $scheme = "{$parsedUrl['scheme']}:";
+    }
+    return $scheme . '//' . $parsedUrl['host'] . $port . $path . $query;
 }
 
 function isSameDomain($url1, $url2) {
@@ -3384,23 +3405,25 @@ function _session_start(array $options = array()) {
 }
 
 function _mysql_connect() {
-    global $global, $mysqlHost, $mysqlUser, $mysqlPass, $mysqlDatabase, $mysqlPort;
-    if (is_object($global['mysqli']) && empty(@$global['mysqli']->ping())) {
-        try {
+    global $global, $mysqlHost, $mysqlUser, $mysqlPass, $mysqlDatabase, $mysqlPort, $mysql_connect_was_closed;
+    try {
+        if (is_object($global['mysqli']) && ($mysql_connect_was_closed || empty(@$global['mysqli']->ping()))) {
+            $mysql_connect_was_closed = 0;
             $global['mysqli'] = new mysqli($mysqlHost, $mysqlUser, $mysqlPass, $mysqlDatabase, @$mysqlPort);
             if (!empty($global['mysqli_charset'])) {
                 $global['mysqli']->set_charset($global['mysqli_charset']);
             }
-        } catch (Exception $exc) {
-            _error_log($exc->getTraceAsString());
-            return false;
         }
+    } catch (Exception $exc) {
+        _error_log($exc->getTraceAsString());
+        return false;
     }
 }
 
 function _mysql_close() {
-    global $global;
+    global $global, $mysql_connect_was_closed;
     if (is_object($global['mysqli']) && !empty(@$global['mysqli']->ping())) {
+        $mysql_connect_was_closed = 1;
         @$global['mysqli']->close();
     }
 }
@@ -3865,8 +3888,8 @@ function isLive() {
     global $isLive;
     if (!empty($isLive)) {
         $live = getLiveKey();
-        if(empty($live)){
-           $live = array('key'=>false, 'live_servers_id'=>false); 
+        if (empty($live)) {
+            $live = array('key' => false, 'live_servers_id' => false);
         }
         $live['liveLink'] = isLiveLink();
         return $live;
@@ -3990,11 +4013,11 @@ function getVideoIDFromURL($url) {
     if (preg_match('/\/articleEmbed\/([0-9]+)/', $url, $matches)) {
         return intval($matches[1]);
     }
-    if(AVideoPlugin::isEnabledByName('PlayLists')){
+    if (AVideoPlugin::isEnabledByName('PlayLists')) {
         if (preg_match('/player.php\?playlists_id=([0-9]+)/', $url, $matches)) {
             $serie_playlists_id = intval($matches[1]);
             $video = PlayLists::isPlayListASerie($serie_playlists_id);
-            if($video){
+            if ($video) {
                 return $video['id'];
             }
         }
@@ -4204,7 +4227,7 @@ function wget($url, $filename, $debug = false) {
     }
     wgetLock($url);
     if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-        $content = file_get_contents($url);
+        $content = @file_get_contents($url);
         if (!empty($content) && file_put_contents($filename, $content) > 100) {
             wgetRemoveLock($url);
             return true;
@@ -4766,17 +4789,17 @@ function getDomain() {
 function getDeviceID($useRandomString = true) {
     $ip = getRealIpAddr();
     if (empty($_SERVER['HTTP_USER_AGENT'])) {
-        return "unknowDevice-{$ip}";
+        $device = "unknowDevice-{$ip}";
+        $device .= '-' . intval(User::getId());
+        return $device;
     }
 
     if (empty($useRandomString)) {
-        $device = get_browser_name() . '-' . getOS() . '-' . $ip . '-' . md5($_SERVER['HTTP_USER_AGENT']);
+        $device = 'ypt-' . get_browser_name() . '-' . getOS() . '-' . $ip . '-' . md5($_SERVER['HTTP_USER_AGENT']);
         $device = str_replace(
                 array('[', ']', ' '),
                 array('', '', '_'), $device);
-        if (User::isLogged()) {
-            $device .= '-' . User::getId();
-        }
+        $device .= '-' . intval(User::getId());
         return $device;
     }
 
@@ -4799,6 +4822,40 @@ function getDeviceID($useRandomString = true) {
         return $_GET[$cookieName];
     }
     return $_COOKIE[$cookieName];
+}
+
+function deviceIdToObject($deviceID) {
+    $parts = explode('-', $deviceID);
+    $obj = new stdClass();
+    $obj->browser = '';
+    $obj->os = '';
+    $obj->ip = '';
+    $obj->user_agent = '';
+    $obj->users_id = 0;
+    
+    foreach ($parts as $key => $value) {
+        $parts[$key] = str_replace('_', ' ', $value);
+    }
+    
+    switch ($parts[0]) {
+        case 'ypt':
+            $obj->browser = $parts[1];
+            $obj->os = $parts[2];
+            $obj->ip = $parts[3];
+            $obj->user_agent = $parts[4];
+            $obj->users_id = $parts[5];
+            break;
+        case 'unknowDevice':
+            $obj->browser = $parts[0];
+            $obj->os = 'unknow OS';
+            $obj->ip = $parts[1];
+            $obj->user_agent = 'unknow UA';
+            $obj->users_id = $parts[2];
+            break;
+        default:
+            break;
+    }
+    return $obj;
 }
 
 function uniqidV4() {
@@ -5205,11 +5262,17 @@ function m3u8ToMP4($input) {
         _error_log("downloadHLS: empty outputfilename {$outputfilename}");
         return false;
     }
-
-    $filepath = escapeshellcmd($input);
+    //var_dump(!preg_match('/^http/i', $input), filesize($input), preg_match('/.m3u8$/i', $input));
+    if(!preg_match('/^http/i', $input) && (filesize($input)<=10 || preg_match('/.m3u8$/i', $input))){ // dummy file
+        $filepath = escapeshellcmd(pathToRemoteURL($input, true));
+    }else{
+        $filepath = escapeshellcmd($input);
+    }
+    
     $outputpath = escapeshellcmd($outputpath);
     if (!file_exists($outputpath)) {
         $command = get_ffmpeg() . " -allowed_extensions ALL -y -i {$filepath} -c:v copy -c:a copy -bsf:a aac_adtstoasc -strict -2 {$outputpath}";
+        _error_log("downloadHLS: Exec Command ({$command})");
         //var_dump($outputfilename, $command, $_GET, $filepath, $quoted);exit;
         exec($command . " 2>&1", $output, $return);
         if (!empty($return)) {
@@ -5359,7 +5422,7 @@ function getTinyMCE($id) {
     return $contents;
 }
 
-function pathToRemoteURL($filename) {
+function pathToRemoteURL($filename, $forceHTTP=false) {
     global $pathToRemoteURL, $global;
     if (!isset($pathToRemoteURL)) {
         $pathToRemoteURL = array();
@@ -5368,7 +5431,6 @@ function pathToRemoteURL($filename) {
     if (isset($pathToRemoteURL[$filename])) {
         return $pathToRemoteURL[$filename];
     }
-    $url = $filename;
     if (!file_exists($filename) || filesize($filename) < 1000) {
         $fileName = getFilenameFromPath($filename);
         if ($yptStorage = AVideoPlugin::loadPluginIfEnabled("YPTStorage")) {
@@ -5389,7 +5451,11 @@ function pathToRemoteURL($filename) {
         }
     }
     if (empty($url)) {
-        $url = $filename;
+        if($forceHTTP){
+            $url = str_replace(getVideosDir(), "{$global['webSiteRootURL']}videos/", $filename);
+        }else{
+            $url = $filename;
+        }
     }
 
     //$url = str_replace(array($global['systemRootPath'], '/videos/videos/'), array("", '/videos/'), $url);
@@ -5460,11 +5526,11 @@ function getCurrentTheme() {
  */
 
 function sendSocketMessage($msg, $callbackJSFunction = "", $users_id = "-1", $send_to_uri_pattern = "") {
-    if (AVideoPlugin::isEnabledByName('Socket')) {
+    if (AVideoPlugin::isEnabledByName('YPTSocket')) {
         if (!is_string($msg)) {
             $msg = json_encode($msg);
         }
-        $obj = Socket::send($msg, $callbackJSFunction, $users_id, $send_to_uri_pattern);
+        $obj = YPTSocket::send($msg, $callbackJSFunction, $users_id, $send_to_uri_pattern);
         if ($obj->error) {
             _error_log("sendSocketMessage " . $obj->msg, AVideoLog::$ERROR);
         }
@@ -5495,16 +5561,20 @@ function sendSocketMessageToNone($msg, $callbackJSFunction = "") {
 }
 
 function execAsync($command) {
-    $command = escapeshellarg($command);
+    //$command = escapeshellarg($command);
     // If windows, else
     if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
         //echo $command;
         //$pid = system("start /min  ".$command. " > NUL");
-        $commandString = "start /B " . $command;
-        pclose($pid = popen($commandString, "r"));
-        var_dump($pid, $commandString);
+        //$commandString = "start /B " . $command;
+        //pclose($pid = popen($commandString, "r"));
+        _error_log($command);
+        $pid = exec($command, $output, $retval);
+        _error_log('execAsync: '. json_encode($output).' '.$retval);
     } else {
-        $pid = exec($command . " > /dev/null 2>&1 & echo $!; ");
+        $newCommand = $command . " > /dev/null 2>&1 & echo $!; ";
+        _error_log($newCommand);
+        $pid = exec($newCommand);
     }
     return $pid;
 }
@@ -5555,30 +5625,53 @@ function getPIDUsingPort($port) {
     return false;
 }
 
-function isURL200($url) {
+function isURL200($url, $forceRecheck = false) {
+    global $_isURL200;
+    if (!isset($_isURL200)) {
+        $_isURL200 = array();
+    }
+    if (empty($forceRecheck) && isset($_isURL200[$url])) {
+        return $_isURL200[$url];
+    }
     //error_log("isURL200 checking URL {$url}");
     $headers = @get_headers($url);
+    if (!is_array($headers)) {
+        $headers = array($headers);
+    }
     foreach ($headers as $value) {
         if (
-                strpos($headers[0], '200') ||
-                strpos($headers[0], '302') ||
-                strpos($headers[0], '304')
+                strpos($value, '200') ||
+                strpos($value, '302') ||
+                strpos($value, '304')
         ) {
+            $_isURL200[$url] = true;
             return true;
         }
     }
+    $_isURL200[$url] = false;
     return false;
 }
 
 function getStatsNotifications() {
     $json = Live::getStats();
-    if (!is_array($json) && is_object($json)) {
-        $json = object_to_array($json);
+    $json = object_to_array($json);
+    
+    if(empty($json['applications']) && is_array($json)){
+        $json['applications'] = array();
+        foreach ($json as $key => $value) {
+            if(empty($value['applications'])){
+                continue;
+            }
+            $json['applications'] = array_merge($json['applications'], $value['applications']);
+            unset($json[$key]);
+        }
     }
+    
     $appArray = AVideoPlugin::getLiveApplicationArray();
+    
     if (!empty($appArray)) {
         if (empty($json)) {
-            $json = new stdClass();
+            $json = array();
         }
         $json['error'] = false;
         if (empty($json['msg'])) {
@@ -5599,11 +5692,19 @@ function getStatsNotifications() {
         $json['total'] += count($json['applications']);
     }
     while (!empty($json[$count])) {
-        $json['total'] += count($json[$count]->applications);
+        $json['total'] += count($json[$count]['applications']);
         $count++;
     }
     if (empty($json['countLiveStream']) || $json['countLiveStream'] < $json['total']) {
         $json['countLiveStream'] = $json['total'];
+    }
+    if (!empty($json['applications'])) {
+        foreach ($json['applications'] as $key => $value) {
+            if (empty($value['users_id']) && !empty($value['user'])) {
+                $u = User::getFromUsername($value['user']);
+                $json['applications'][$key]['users_id'] = $u['id'];
+            }
+        }
     }
     return $json;
 }
@@ -5620,45 +5721,49 @@ function getSocketConnectionLabel() {
     return $html;
 }
 
-function getSocketVideoClassName($videos_id){
-    return 'total_on_videos_id_'.$videos_id;
-}
-function getSocketLiveClassName($key, $live_servers_id){
-    return 'total_on_live_'.$key.'_'.intval($live_servers_id);
-}
-function getSocketLiveLinksClassName($live_links_id){
-    return 'total_on_live_links_id_'.$live_links_id;
+function getSocketVideoClassName($videos_id) {
+    return 'total_on_videos_id_' . $videos_id;
 }
 
-function getLiveUsersLabelVideo($videos_id, $totalViews = null, $viewsClass = "label label-default", $counterClass = "label label-primary"){
-    if(AVideoPlugin::isEnabledByName('LiveUsers') && method_exists("LiveUsers", "getLabels")){
+function getSocketLiveClassName($key, $live_servers_id) {
+    return 'total_on_live_' . $key . '_' . intval($live_servers_id);
+}
+
+function getSocketLiveLinksClassName($live_links_id) {
+    return 'total_on_live_links_id_' . $live_links_id;
+}
+
+function getLiveUsersLabelVideo($videos_id, $totalViews = null, $viewsClass = "label label-default", $counterClass = "label label-primary") {
+    if (AVideoPlugin::isEnabledByName('LiveUsers') && method_exists("LiveUsers", "getLabels")) {
         return LiveUsers::getLabels(getSocketVideoClassName($videos_id), $totalViews, $viewsClass, $counterClass);
     }
 }
-function getLiveUsersLabelLive($key, $live_servers_id, $viewsClass = "label label-default", $counterClass = "label label-primary"){
-    if(AVideoPlugin::isEnabledByName('LiveUsers') && method_exists("LiveUsers", "getLabels")){
+
+function getLiveUsersLabelLive($key, $live_servers_id, $viewsClass = "label label-default", $counterClass = "label label-primary") {
+    if (AVideoPlugin::isEnabledByName('LiveUsers') && method_exists("LiveUsers", "getLabels")) {
         $totalViews = LiveUsers::getTotalUsers($key, $live_servers_id);
         return LiveUsers::getLabels(getSocketLiveClassName($key, $live_servers_id), $totalViews, $viewsClass, $counterClass);
     }
 }
-function getLiveUsersLabelLiveLinks($liveLinks_id, $totalViews = null, $viewsClass = "label label-default", $counterClass = "label label-primary"){
-    if(AVideoPlugin::isEnabledByName('LiveUsers') && method_exists("LiveUsers", "getLabels")){
+
+function getLiveUsersLabelLiveLinks($liveLinks_id, $totalViews = null, $viewsClass = "label label-default", $counterClass = "label label-primary") {
+    if (AVideoPlugin::isEnabledByName('LiveUsers') && method_exists("LiveUsers", "getLabels")) {
         return LiveUsers::getLabels(getSocketLiveLinksClassName($liveLinks_id), $totalViews, $viewsClass, $counterClass);
     }
 }
 
-function getLiveUsersLabel($viewsClass = "label label-default", $counterClass = "label label-primary"){
-    if(AVideoPlugin::isEnabledByName('LiveUsers')){
+function getLiveUsersLabel($viewsClass = "label label-default", $counterClass = "label label-primary") {
+    if (AVideoPlugin::isEnabledByName('LiveUsers')) {
         $live = isLive();
-        if(!empty($live)){
-            if(!empty($live['key'])){
+        if (!empty($live)) {
+            if (!empty($live['key'])) {
                 return getLiveUsersLabelLive($live['key'], $live['live_servers_id'], $viewsClass, $counterClass);
-            }else if(!empty($live['liveLinks_id'])){
+            } else if (!empty($live['liveLinks_id'])) {
                 return getLiveUsersLabelLiveLinks($live['liveLinks_id'], null, $viewsClass, $counterClass);
             }
-        }else{
+        } else {
             $videos_id = getVideos_id();
-            if(!empty($videos_id)){
+            if (!empty($videos_id)) {
                 $v = new Video("", "", $videos_id);
                 $totalViews = $v->getViews_count();
                 return getLiveUsersLabelVideo($videos_id, $totalViews, $viewsClass, $counterClass);
@@ -5668,32 +5773,103 @@ function getLiveUsersLabel($viewsClass = "label label-default", $counterClass = 
     return "";
 }
 
-function getHTMLTitle($titleArray){
+function getHTMLTitle($titleArray) {
     global $config, $global;
-    
-    if(!is_array($titleArray)){
+
+    if (!is_array($titleArray)) {
         $titleArray = array();
     }
     $titleArray[] = $config->getWebSiteTitle();
-    
+
     $title = implode($config->getPageTitleSeparator(), $titleArray);
-    $global['pageTitle'] = $title; 
+    $global['pageTitle'] = $title;
     return "<title>{$title}</title>";
 }
 
-function getTitle(){
+function getButtonSignInAndUp() {
+    $signIn = getButtonSignIn();
+    $signUp = getButtonSignUp();
+    $html = $signIn . $signUp;
+    if (!empty($signIn) && !empty($signIn)) {
+        return '<div class="btn-group justified">' . $html . '</div>';
+    } else {
+        return $html;
+    }
+}
+
+function getButtonSignUp() {
     global $global;
-    if(empty($global['pageTitle'])){
+    $obj = AVideoPlugin::getDataObject('CustomizeUser');
+    if (!empty($obj->disableNativeSignUp)) {
+        return '';
+    }
+
+    $url = $global['webSiteRootURL'] . 'signUp';
+    $url = addQueryStringParameter($url, 'redirectUri', getRedirectUri());
+
+    $html = '<a class="btn navbar-btn btn-default" href="' . $url . '" ><i class="fas fa-user-plus"></i> ' . __("Sign Up") . '</a> ';
+    return $html;
+}
+
+function getButtonSignIn() {
+    global $global;
+    $obj = AVideoPlugin::getDataObject('CustomizeUser');
+    if (!empty($obj->disableNativeSignIn)) {
+        return '';
+    }
+
+    $url = $global['webSiteRootURL'] . 'user';
+    $url = addQueryStringParameter($url, 'redirectUri', getRedirectUri());
+
+    $html = '<a class="btn navbar-btn btn-success" href="' . $url . '" ><i class="fas fa-sign-in-alt" ></i> ' . __("Sign In") . '</a> ';
+    return $html;
+}
+
+function getTitle() {
+    global $global;
+    if (empty($global['pageTitle'])) {
         $url = getSelfURI();
-        
+
         $global['pageTitle'] = str_replace($global['webSiteRootURL'], '', $url);
-        
-        if(preg_match('/\/plugin\/([^\/])/i', $url, $matches)){
-            $global['pageTitle'] = __('Plugin').' '.__($matches[1]);
+
+        if (preg_match('/\/plugin\/([^\/])/i', $url, $matches)) {
+            $global['pageTitle'] = __('Plugin') . ' ' . __($matches[1]);
         }
-        
+
         $title = $global['pageTitle'];
     }
-    
+
     return $global['pageTitle'];
+}
+
+function outputAndContinueInBackground() {    
+    global $outputAndContinueInBackground;
+    
+    if(!empty($outputAndContinueInBackground)){
+        return false;
+    }
+    $outputAndContinueInBackground = 1;
+    @session_write_close();
+    //_mysql_close();
+    // Instruct PHP to continue execution
+    ignore_user_abort(true);
+    if (function_exists('fastcgi_finish_request')) {
+        fastcgi_finish_request();
+    }    
+    ob_start();
+    @header("Connection: close");
+    @header("Content-Length: " . ob_get_length());
+    ob_end_flush();
+    flush();
+}
+
+function cleanUpRowFromDatabase($row) {
+    if (is_array($row)) {
+        foreach ($row as $key => $value) {
+            if (preg_match('/pass/i', $key)) {
+                unset($row[$key]);
+            }
+        }
+    }
+    return $row;
 }

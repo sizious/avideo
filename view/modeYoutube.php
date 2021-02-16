@@ -279,22 +279,25 @@ if (!empty($evideo)) {
         $autoPlayThumbsSprit = "";
     }
 
-    if (empty($_GET['videoName'])) {
+    if (empty($_GET['videoName']) && !empty($video)) {
         $_GET['videoName'] = $video['clean_title'];
     }
 
     $v = Video::getVideoFromCleanTitle($_GET['videoName']);
-
-    $modeYouTubeTimeLog['Code part 4'] = microtime(true) - $modeYouTubeTime;
-    $modeYouTubeTime = microtime(true);
-    AVideoPlugin::getModeYouTube($v['id']);
-    $modeYouTubeTimeLog['Code part 5'] = microtime(true) - $modeYouTubeTime;
-    $modeYouTubeTime = microtime(true);
-    if (empty($video)) {
-        header('HTTP/1.0 404 Not Found', true, 404);
+    if(empty($v)){
+        videoNotFound("");
+    }else{
+        $modeYouTubeTimeLog['Code part 4'] = microtime(true) - $modeYouTubeTime;
+        $modeYouTubeTime = microtime(true);
+        AVideoPlugin::getModeYouTube($v['id']);
+        $modeYouTubeTimeLog['Code part 5'] = microtime(true) - $modeYouTubeTime;
+        $modeYouTubeTime = microtime(true);
+        if (empty($video)) {
+            header('HTTP/1.0 404 Not Found', true, 404);
+        }
+        $modeYouTubeTimeLog['Code part 6'] = microtime(true) - $modeYouTubeTime;
+        $modeYouTubeTime = microtime(true);
     }
-    $modeYouTubeTimeLog['Code part 6'] = microtime(true) - $modeYouTubeTime;
-    $modeYouTubeTime = microtime(true);
 }
 
 // video not found
@@ -344,8 +347,14 @@ if (!empty($video['users_id']) && User::hasBlockedUser($video['users_id'])) {
         <link href="<?php echo $global['webSiteRootURL']; ?>plugin/Gallery/style.css" rel="stylesheet" type="text/css"/>
         <?php
         include $global['systemRootPath'] . 'view/include/head.php';
-        getOpenGraph(0);
-        getLdJson(0);
+        
+        if(!empty($_GET['v'])){
+            getOpenGraph($_GET['v']);
+            getLdJson($_GET['v']);
+        }else{
+            getOpenGraph(0);
+            getLdJson(0);
+        }
         $modeYouTubeTimeLog['After head'] = microtime(true) - $modeYouTubeTime;
         $modeYouTubeTime = microtime(true);
         ?>

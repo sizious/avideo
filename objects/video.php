@@ -56,6 +56,7 @@ if (!class_exists('Video')) {
         private $filesize;
         public static $statusDesc = array(
             'a' => 'active',
+            'k' => 'active and encoding',
             'i' => 'inactive',
             'e' => 'encoding',
             'x' => 'encoding error',
@@ -825,6 +826,7 @@ if (!class_exists('Video')) {
             if ($res != false) {
                 require_once $global['systemRootPath'] . 'objects/userGroups.php';
                 if (!empty($video)) {
+                    $video = cleanUpRowFromDatabase($video);
                     $video['category'] = xss_esc_back($video['category']);
                     $video['groups'] = UserGroups::getVideoGroups($video['id']);
                     $video['title'] = UTF8encode($video['title']);
@@ -850,8 +852,6 @@ if (!class_exists('Video')) {
                         $video['videoTags'] = Tags::getAllFromVideosId($video['id']);
                         $video['videoTagsObject'] = Tags::getObjectFromVideosId($video['id']);
                     }
-                    unset($video['password']);
-                    unset($video['recoverPass']);
                 }
             } else {
                 $video = false;
@@ -958,7 +958,7 @@ if (!class_exists('Video')) {
             $res = sqlDAL::readSql($sql, "s", array($clean_title));
             $video = sqlDAL::fetchAssoc($res);
             sqlDAL::close($res);
-            if ($res) {
+            if (!empty($video) && $res) {
                 return self::getVideo($video['id'], "", true, false, false, true);
             //$video['groups'] = UserGroups::getVideoGroups($video['id']);
             } else {
@@ -1058,7 +1058,7 @@ if (!class_exists('Video')) {
             } elseif ($status == "viewableNotUnlisted") {
                 $sql .= " AND v.status IN ('" . implode("','", Video::getViewableStatus(false)) . "')";
             } elseif ($status == "publicOnly") {
-                $sql .= " AND v.status = 'a' AND (SELECT count(id) FROM videos_group_view as gv WHERE gv.videos_id = v.id ) = 0";
+                $sql .= " AND v.status IN ('a', 'k') AND (SELECT count(id) FROM videos_group_view as gv WHERE gv.videos_id = v.id ) = 0";
             } elseif (!empty($status)) {
                 $sql .= " AND v.status = '{$status}'";
             }
@@ -1165,8 +1165,7 @@ if (!class_exists('Video')) {
                 require_once 'userGroups.php';
                 TimeLogStart("video::getAllVideos foreach");
                 foreach ($fullData as $row) {
-                    unset($row['password']);
-                    unset($row['recoverPass']);
+                    $row = cleanUpRowFromDatabase($row);
                     if (!self::canEdit($row['id'])) {
                         if (!empty($row['video_password'])) {
                             $row['video_password'] = 1;
@@ -1603,6 +1602,7 @@ if (!class_exists('Video')) {
         {
             /**
               a = active
+              k = active and encoding
               i = inactive
               e = encoding
               x = encoding error
@@ -1613,7 +1613,7 @@ if (!class_exists('Video')) {
               xmp3 = encoding mp3 error
               xogg = encoding ogg error
              */
-            $viewable = array('a', 'xmp4', 'xwebm', 'xmp3', 'xogg');
+            $viewable = array('a', 'k', 'xmp4', 'xwebm', 'xmp3', 'xogg');
             if ($showUnlisted) {
                 $viewable[] = "u";
             } elseif (!empty($_GET['videoName'])) {
@@ -2250,6 +2250,10 @@ if (!class_exists('Video')) {
                     case 'a':
                         $objTag->type = "success";
                         $objTag->text = __("Active");
+                        break;
+                    case 'k':
+                        $objTag->type = "success";
+                        $objTag->text = __("Active and encoding");
                         break;
                     case 'i':
                         $objTag->type = "warning";

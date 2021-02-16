@@ -37,7 +37,7 @@ class YPTWallet extends PluginAbstract
 
     public function getPluginVersion()
     {
-        return "3.1";
+        return "3.2";
     }
 
     public function getEmptyDataObject()
@@ -188,6 +188,7 @@ class YPTWallet extends PluginAbstract
 
         if ($res) {
             while ($row = $res->fetch_assoc()) {
+                $row = cleanUpRowFromDatabase($row);
                 $row['name'] = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/u', '', $row['name']);
                 $row['identification'] = User::getNameIdentificationById($row['user_id']);
                 $row['identification'] = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/u', '', $row['identification']);
@@ -407,15 +408,7 @@ class YPTWallet extends PluginAbstract
         global $global;
 
         if (!User::isLogged()) {
-            $redirectUri = getSelfURI();
-            if (!empty($redirectUri)) {
-                $redirectUri = "&redirectUri=" . urlencode($redirectUri);
-            }
-            echo '<div class="btn-group  btn-group-justified"><a href="' . $global['webSiteRootURL'] . 'signUp?redirectUri' . $redirectUri . '" class="btn btn-primary" id="YPTWalletSignUp">'
-            . '<i class="fas fa-user-plus"></i>  ' . __("Sign Up")
-            . '</a><a href="' . $global['webSiteRootURL'] . 'user?redirectUri' . $redirectUri . '" class="btn btn-success" id="YPTWalletSignIn">'
-            . '<i class="fas fa-sign-in-alt"></i>  ' . __("Sign In")
-            . '</a></div>';
+            echo getButtonSignInAndUp();
             return false;
         }
 
@@ -442,11 +435,7 @@ class YPTWallet extends PluginAbstract
             if (!empty($redirectUri)) {
                 $redirectUri = "&redirectUri=" . urlencode($redirectUri);
             }
-            echo '<div class="btn-group  btn-group-justified"><a href="' . $global['webSiteRootURL'] . 'signUp?redirectUri' . $redirectUri . '" class="btn btn-primary" id="YPTWalletSignUp">'
-            . '<i class="fas fa-user-plus"></i>  ' . __("Sign Up")
-            . '</a><a href="' . $global['webSiteRootURL'] . 'user?redirectUri' . $redirectUri . '" class="btn btn-success" id="YPTWalletSignIn">'
-            . '<i class="fas fa-sign-in-alt"></i>  ' . __("Sign In")
-            . '</a></div>';
+            echo getButtonSignUp(). getButtonSignIn();;
             return false;
         }
 

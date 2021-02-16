@@ -6,15 +6,15 @@ use Socket\Message;
 //use React\Socket\Server as Reactor;
 
 require_once dirname(__FILE__) . '/../../videos/configuration.php';
-require_once $global['systemRootPath'] . 'plugin/Socket/Message.php';
+require_once $global['systemRootPath'] . 'plugin/YPTSocket/Message.php';
 require_once $global['systemRootPath'] . 'objects/autoload.php';
 
 if (!isCommandLineInterface()) {
     die("Command line only");
 }
 
-$SocketDataObj = AVideoPlugin::getDataObject("Socket");
-$SocketDataObj->serverVersion = Socket::getServerVersion();
+$SocketDataObj = AVideoPlugin::getDataObject("YPTSocket");
+$SocketDataObj->serverVersion = YPTSocket::getServerVersion();
 
 ob_end_flush();
 _mysql_close();
@@ -39,6 +39,13 @@ if(strtolower($scheme)!=='https'){
 
     $server->run();
 } else {
+    if(!file_exists($SocketDataObj->server_crt_file) || !is_readable($SocketDataObj->server_crt_file)){
+        echo "SSL ERROR, we could not access the CRT file {$SocketDataObj->server_crt_file}, try to run this command as root or use sudo ".PHP_EOL;
+    }
+    if(!file_exists($SocketDataObj->server_key_file) || !is_readable($SocketDataObj->server_key_file)){
+        echo "SSL ERROR, we could not access the KEY file {$SocketDataObj->server_key_file}, try to run this command as root or use sudo ".PHP_EOL;
+    }
+    
     echo "Your socket server uses a secure connection".PHP_EOL;
     $parameters = [
         'local_cert' => $SocketDataObj->server_crt_file,

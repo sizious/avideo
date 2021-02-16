@@ -473,7 +473,7 @@ class Live extends PluginAbstract {
         $obj = AVideoPlugin::getObjectData("Live");
         $url = $obj->playerServer;
         if (!empty($obj->useLiveServers)) {
-            $ls = new Live_servers(self::getCurrentLiveServersId());
+            $ls = new Live_servers(self::getLiveServersIdRequest());
             if (!empty($ls->getPlayerServer())) {
                 $url = $ls->getPlayerServer();
             }
@@ -834,6 +834,9 @@ class Live extends PluginAbstract {
                 $server->live_servers_id = $value['id'];
                 $server->playerServer = $value['playerServer'];
                 foreach ($server->applications as $key => $app) {
+                    if(self::isAdaptive($app['key'])){
+                        continue;
+                    }
                     $_REQUEST['live_servers_id'] = $value['id'];
                     if (empty($app['key'])) {
                         $app['key'] = "";
@@ -851,6 +854,17 @@ class Live extends PluginAbstract {
         $getStatsLive = $liveServers;
         return $liveServers;
     }
+    
+    static function isAdaptive($key){
+        $parts = explode("_", $key);
+        if(!empty($parts[1])){
+            $adaptive = array('hi', 'low', 'mid');
+            if(in_array($parts[1], $adaptive)){
+                return true;
+            }
+        }
+        return false;
+    }
 
     static function getAllServers() {
         $obj = AVideoPlugin::getObjectData("Live");
@@ -862,6 +876,10 @@ class Live extends PluginAbstract {
     }
 
     static function getAvailableLiveServer() {
+        global $_getAvailableLiveServer;
+        if(isset($_getAvailableLiveServer)){
+            return $_getAvailableLiveServer;
+        }
         // create 1 min cache
         $name = "Live::getAvailableLiveServer";
         $return = ObjectYPT::getCache($name, 60);
@@ -873,18 +891,22 @@ class Live extends PluginAbstract {
                 $liveServers = self::getStats();
                 usort($liveServers, function($a, $b) {
                     if ($a->countLiveStream == $b->countLiveStream) {
+                        $_getAvailableLiveServer = 0;
                         return 0;
                     }
-                    return ($a->countLiveStream < $b->countLiveStream) ? -1 : 1;
+                    $_getAvailableLiveServer = ($a->countLiveStream < $b->countLiveStream) ? -1 : 1;;
+                    return $_getAvailableLiveServer;
                 });
                 if (empty($liveServers[0])) {
                     _error_log("Live::getAvailableLiveServer we could not get server status, try to uncheck useLiveServers parameter from the Live plugin");
+                    $_getAvailableLiveServer = array();
                     return array();
                 }
                 $return = $liveServers[0];
                 ObjectYPT::setCache($name, $return);
             }
         }
+        $_getAvailableLiveServer = $return;
         return $return;
     }
 
@@ -902,6 +924,16 @@ class Live extends PluginAbstract {
             return false;
         }
         return $lt->isAPrivateLive();
+    }
+
+    static function getTitleFromUsers_Id($users_id){
+        $lt = self::getLiveTransmitionObjectFromUsers_id($users_id);
+        return $lt->getTitle();
+    }
+    
+    static function getLiveTransmitionObjectFromUsers_id($users_id) {
+        $key = self::getLiveKey($users_id);
+        return self::getLiveTransmitionObjectFromKey($key);
     }
 
     static function getLiveTransmitionObjectFromKey($key) {
@@ -968,9 +1000,15 @@ class Live extends PluginAbstract {
                 $stream = $application->live->stream;
                 if (empty($application->live->stream->name) && !empty($application->live->stream[0]->name)) {
                     foreach ($application->live->stream as $stream) {
+                        if(Live::isAdaptive($stream->name)){
+                            continue;
+                        }
                         $lifeStream[] = $stream;
                     }
                 } else {
+                    if(Live::isAdaptive($stream->name)){
+                        continue;
+                    }
                     $lifeStream[] = $application->live->stream;
                 }
             }
@@ -1062,7 +1100,8 @@ class Live extends PluginAbstract {
                     'href' => $link,
                     'playlists_id_live' => $playlists_id_live,
                     'm3u8' => $m3u8,
-                    'isURL200' => isURL200($m3u8)
+                    'isURL200' => isURL200($m3u8),
+                    'users_id' => $row['users_id']
                 );
                 if ($value->name === $obj->name) {
                     $obj->error = property_exists($value, 'publishing') ? false : true;
@@ -1085,7 +1124,7 @@ class Live extends PluginAbstract {
             $url = $p->getLivePosterImage($users_id, $live_servers_id);
             $url = addQueryStringParameter($url, "playlists_id_live", $playlists_id_live);
         } else {
-            $file = self::getOfflineImage(false);
+            $url = self::getOfflineImage(false);
         }
         return $url;
     }
@@ -1109,7 +1148,7 @@ class Live extends PluginAbstract {
                     if (empty($live_servers_id)) {
                         return true;
                     } else {
-                        if ($value['live_servers_id'] == $live_servers_id) {
+                        if (intval(@$value['live_servers_id']) == $live_servers_id) {
                             return true;
                         }
                     }
@@ -1170,7 +1209,7 @@ class Live extends PluginAbstract {
         return $url;
     }
 
-    public function getPosterImage($users_id, $live_servers_id) {
+    public static function  getPosterImage($users_id, $live_servers_id) {
         global $global;
         $file = self::_getPosterImage($users_id, $live_servers_id);
 
@@ -1244,7 +1283,7 @@ class Live extends PluginAbstract {
         return $img;
     }
 
-    public function _getPosterImage($users_id, $live_servers_id) {
+    public static function _getPosterImage($users_id, $live_servers_id) {
         $file = "videos/userPhoto/Live/user_{$users_id}_bg_{$live_servers_id}.jpg";
         return $file;
     }
@@ -1287,12 +1326,7 @@ class Live extends PluginAbstract {
     }
 
     public static function restream($liveTransmitionHistory_id) {
-        ignore_user_abort(true);
-        ob_start();
-        header("Connection: close");
-        @header("Content-Length: " . ob_get_length());
-        ob_end_flush();
-        flush();
+        outputAndContinueInBackground();
         try {
             $obj = self::getRestreamObject($liveTransmitionHistory_id);
             if (empty($obj)) {
@@ -1436,8 +1470,7 @@ class Live extends PluginAbstract {
         $videos = array();
         if ($res != false) {
             foreach ($fullData as $row) {
-                unset($row['password']);
-                unset($row['recoverPass']);
+                $row = cleanUpRowFromDatabase($row);
 
                 $row['live_servers_id'] = self::getLastServersIdFromUser($row['users_id']);
 

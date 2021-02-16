@@ -113,7 +113,7 @@ class LiveTransmitionHistory extends ObjectYPT {
         $obj->link = addQueryStringParameter($obj->href, 'embed', 1);
         $obj->name = $u->getNameIdentificationBd();
         $obj->playlists_id_live = $playlists_id_live;
-        $obj->poster = Live::isAPrivateLiveFromLiveKey($obj->key);
+        $obj->poster = $poster;
         $obj->title = $title;
         $obj->user = $u->getUser();
         $users = false;
@@ -129,6 +129,7 @@ class LiveTransmitionHistory extends ObjectYPT {
         
         $obj->m3u8 =$m3u8;
         $obj->isURL200 = isURL200($m3u8);
+        $obj->users_id = $users_id;
         
         return $obj;
     }
@@ -138,19 +139,30 @@ class LiveTransmitionHistory extends ObjectYPT {
         $lth = new LiveTransmitionHistory($liveTransmitionHistory_id);
         
         $key = $lth->getKey();
-        foreach ($stats['applications'] as $value) {
-            $value = object_to_array($value);
-            if(!empty($value['key']) && $value['key']==$key){ // application is already in the list
-                return $stats; 
+        if(!empty($stats['applications'])){
+            foreach ($stats['applications'] as $value) {
+                if(empty($value['key'])){
+                    continue;
+                }
+                $value = object_to_array($value);
+                $value['key']= self::getCleankeyName($value['key']);
+                if(!empty($value['key']) && $value['key']==$key){ // application is already in the list
+                    return $stats; 
+                }
             }
         }
-        foreach ($stats['hidden_applications'] as $value) {
-            $value = object_to_array($value);
-            if($value['key']==$key){ // application is already in the list
-                return $stats;
+        if(!empty($stats['hidden_applications'])){
+            foreach ($stats['hidden_applications'] as $value) {
+                if(empty($value['key'])){
+                    continue;
+                }
+                $value = object_to_array($value);
+                $value['key']= self::getCleankeyName($value['key']);
+                if($value['key']==$key){ // application is already in the list
+                    return $stats;
+                }
             }
         }
-        
         $application = self::getApplicationObject($liveTransmitionHistory_id);
         if ($application->isPrivate) {
             $stats['hidden_applications'][] = $application;
@@ -159,6 +171,17 @@ class LiveTransmitionHistory extends ObjectYPT {
         }
         $stats['countLiveStream']++;
         return $stats;
+    }
+    
+    static function getCleankeyName($key){
+        $parts = explode("_", $key);
+        if(!empty($parts[1])){
+            $adaptive = array('hi', 'low', 'mid');
+            if(in_array($parts[1], $adaptive)){
+                return $parts[0];
+            }
+        }
+        return $key;
     }
 
     static function getStatsAndRemoveApplication($liveTransmitionHistory_id) {
@@ -187,7 +210,7 @@ class LiveTransmitionHistory extends ObjectYPT {
         $this->live_servers_id = intval($live_servers_id);
     }
 
-    function getAllFromUser($users_id) {
+    static function getAllFromUser($users_id) {
         global $global;
         $sql = "SELECT * FROM  " . static::getTableName() . " WHERE users_id = ? ";
 

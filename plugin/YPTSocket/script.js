@@ -5,15 +5,14 @@ function socketConnect() {
         return false;
     }
     socketConnectRequested = 1;
-    var url = addGetParam(webSocketURL, 'page_title', $(document).find("title").text());
-    console.log('Trying to reconnect on socket... ' + url);
+    var url = addGetParam(webSocketURL, 'page_title', $('<textarea />').html($(document).find("title").text()).text());
+    console.log('Trying to reconnect on socket... ');
     conn = new WebSocket(url);
     conn.onopen = function (e) {
         console.log("Socket onopen");
         return false;
     };
     conn.onmessage = function (e) {
-        console.log(e.data);
         var json = JSON.parse(e.data);
         parseSocketResponse(json);
         if (json.type == webSocketTypes.ON_VIDEO_MSG) {
@@ -91,17 +90,24 @@ function defaultCallback(json) {
 
 function parseSocketResponse(json) {
     console.log("parseSocketResponse", json);
-    if(json.isAdmin && webSocketServerVersion!==json.webSocketServerVersion){
-        avideoToastWarning("Please restart your socket server. You are running (v"+json.webSocketServerVersion+") and your client is expecting (v"+webSocketServerVersion+")");
+    if (json.isAdmin && webSocketServerVersion > json.webSocketServerVersion) {
+        if (typeof avideoToastWarning == 'funciton') {
+            avideoToastWarning("Please restart your socket server. You are running (v" + json.webSocketServerVersion + ") and your client is expecting (v" + webSocketServerVersion + ")");
+        }
     }
     if (json && typeof json.autoUpdateOnHTML !== 'undefined') {
         $('.total_on').text(0);
+        $('.total_on').parent().removeClass('text-success');
         //console.log("parseSocketResponse", json.autoUpdateOnHTML);
         for (var prop in json.autoUpdateOnHTML) {
             if (json.autoUpdateOnHTML[prop] === false) {
                 continue;
             }
-            $('.' + prop).text(json.autoUpdateOnHTML[prop]);
+            var val = json.autoUpdateOnHTML[prop];
+            $('.' + prop).text(val);
+            if (parseInt(val) > 0) {
+                $('.' + prop).parent().addClass('text-success');
+            }
         }
     }
 
@@ -130,9 +136,33 @@ function parseSocketResponse(json) {
                     if (json.users_uri[prop][prop2][prop3] === false || typeof json.users_uri[prop][prop2][prop3] !== 'object') {
                         continue;
                     }
-                    var html = '<div><a href="' + json.users_uri[prop][prop2][prop3].selfURI + '" target="_blank"><img src="' + webSiteRootURL + 'user/' + json.users_uri[prop][prop2][prop3].users_id + '/foto.png" class="img img-circle img-responsive">(' + json.users_uri[prop][prop2][prop3].page_title + ') ' + json.users_uri[prop][prop2][prop3].user_name + '  IP: ' + json.users_uri[prop][prop2][prop3].ip + ' </a></div>'
-                    //console.log(json.users_uri[prop]);
-                    $('#socketUsersURI').append(html);
+
+                    var socketUserDivID = 'socketUser' + json.users_uri[prop][prop2][prop3].users_id;
+
+                    if (!$('#' + socketUserDivID).length) {
+                        var html = '<div class="socketUserDiv" id="' + socketUserDivID + '" >';
+                        html += '<div class="socketUserName" onclick="socketUserNameToggle(\'#' + socketUserDivID + '\');">';
+                        html += '<i class="fas fa-caret-down"></i><i class="fas fa-caret-up"></i> <img src="' + webSiteRootURL + 'user/' + json.users_uri[prop][prop2][prop3].users_id + '/foto.png" class="img img-circle img-responsive">' + json.users_uri[prop][prop2][prop3].user_name + '</div>';
+                        html += '<div class="socketUserPages"></div></div>';
+                        $('#socketUsersURI').append(html);
+                    }
+
+                    var text = '';
+                    if (json.ResourceID == json.users_uri[prop][prop2][prop3].resourceId) {
+                        text += '<stcong>(YOU)</strong>';
+                    }
+                    text = ' ' + json.users_uri[prop][prop2][prop3].page_title;
+                    text += '<br><small>(' + json.users_uri[prop][prop2][prop3].client.browser + ' - ' + json.users_uri[prop][prop2][prop3].client.os + ') ' + json.users_uri[prop][prop2][prop3].ip + '</small>';
+                    if (json.users_uri[prop][prop2][prop3].location) {
+                        text += '<br><i class="flagstrap-icon flagstrap-' + json.users_uri[prop][prop2][prop3].location.country_code + '" style="margin-right: 10px;"></i>';
+                        text += ' ' + json.users_uri[prop][prop2][prop3].location.country_name;
+                    }
+                    html = '<a href="' + json.users_uri[prop][prop2][prop3].selfURI + '" target="_blank" class="btn btn-xs btn-default btn-block"><i class="far fa-compass"></i> ' + text + '</a>';
+                    $('#' + socketUserDivID + ' .socketUserPages').append(html);
+                    var isVisible = Cookies.get('#' + socketUserDivID);
+                    if (isVisible && isVisible !== 'false') {
+                        $('#' + socketUserDivID).addClass('visible')
+                    }
                 }
             }
 
@@ -141,5 +171,25 @@ function parseSocketResponse(json) {
 }
 
 $(function () {
-    socketConnect();
+    console.log('Getting webSocketToken ...');
+    var getWebSocket = webSiteRootURL + 'plugin/YPTSocket/getWebSocket.json.php';
+    getWebSocket = addGetParam(getWebSocket, 'webSocketSelfURI', webSocketSelfURI);
+    getWebSocket = addGetParam(getWebSocket, 'webSocketVideos_id', webSocketVideos_id);
+    getWebSocket = addGetParam(getWebSocket, 'webSocketLiveKey', webSocketLiveKey);
+    $.ajax({
+        url: getWebSocket,
+        success: function (response) {
+            if (response.error) {
+                console.log('Getting webSocketToken ERROR ' + response.msg);
+                if (typeof avideoToastError == 'funciton') {
+                    avideoToastError(response.msg);
+                }
+            } else {
+                console.log('Getting webSocketToken SUCCESS ', response);
+                webSocketToken = response.webSocketToken;
+                webSocketURL = response.webSocketURL;
+                socketConnect();
+            }
+        }
+    });
 });
