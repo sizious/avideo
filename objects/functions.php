@@ -636,6 +636,7 @@ function sendEmailToSiteOwner($subject, $message) {
 }
 
 function parseVideos($videoString = null, $autoplay = 0, $loop = 0, $mute = 0, $showinfo = 0, $controls = 1, $time = 0, $objectFit = "") {
+    global $global;
     //_error_log("parseVideos: $videoString");
     if (strpos($videoString, 'youtube.com/embed') !== false) {
         return $videoString . (parse_url($videoString, PHP_URL_QUERY) ? '&' : '?') . 'modestbranding=1&showinfo='
@@ -761,19 +762,19 @@ function parseVideos($videoString = null, $autoplay = 0, $loop = 0, $mute = 0, $
         preg_match('/\/\/(www\.)?twitch.tv\/videos\/([a-zA-Z0-9_-]+)$/', $link, $matches);
         if (!empty($matches[2])) {
             $id = $matches[2];
-            return '//player.twitch.tv/?video=' . $id . '#';
+            return '//player.twitch.tv/?video=' . $id . '&parent='.parse_url($global['webSiteRootURL'], PHP_URL_HOST);
         }
         //extract the ID
         preg_match('/\/\/(www\.)?twitch.tv\/[a-zA-Z0-9_-]+\/v\/([a-zA-Z0-9_-]+)$/', $link, $matches);
 
         $id = $matches[2];
-        return '//player.twitch.tv/?video=' . $id . '#';
+        return '//player.twitch.tv/?video=' . $id . '&parent='.parse_url($global['webSiteRootURL'], PHP_URL_HOST);
     } elseif (strpos($link, 'twitch.tv') !== false) {
         //extract the ID
         preg_match('/\/\/(www\.)?twitch.tv\/([a-zA-Z0-9_-]+)$/', $link, $matches);
 
         $id = $matches[2];
-        return '//player.twitch.tv/?channel=' . $id . '#';
+        return '//player.twitch.tv/?channel=' . $id . '&parent='.parse_url($global['webSiteRootURL'], PHP_URL_HOST);
     } elseif (strpos($link, '/evideo/') !== false) {
         //extract the ID
         preg_match('/(http.+)\/evideo\/([a-zA-Z0-9_-]+)($|\/)/i', $link, $matches);
@@ -3407,7 +3408,7 @@ function _session_start(array $options = array()) {
 function _mysql_connect() {
     global $global, $mysqlHost, $mysqlUser, $mysqlPass, $mysqlDatabase, $mysqlPort, $mysql_connect_was_closed;
     try {
-        if (is_object($global['mysqli']) && ($mysql_connect_was_closed || empty(@$global['mysqli']->ping()))) {
+        if (!_mysql_is_open()) {
             $mysql_connect_was_closed = 0;
             $global['mysqli'] = new mysqli($mysqlHost, $mysqlUser, $mysqlPass, $mysqlDatabase, @$mysqlPort);
             if (!empty($global['mysqli_charset'])) {
@@ -3422,10 +3423,22 @@ function _mysql_connect() {
 
 function _mysql_close() {
     global $global, $mysql_connect_was_closed;
-    if (is_object($global['mysqli']) && !empty(@$global['mysqli']->ping())) {
+    if (_mysql_is_open()) {
         $mysql_connect_was_closed = 1;
         @$global['mysqli']->close();
     }
+}
+
+function _mysql_is_open(){
+    global $global, $mysql_connect_was_closed;
+    try {
+        if (is_object($global['mysqli']) && (empty($mysql_connect_was_closed) || !empty(@$global['mysqli']->ping()))) {
+            return true;
+        }
+    } catch (Exception $exc) {
+        return false;
+    }
+    return false;
 }
 
 function remove_utf8_bom($text) {
@@ -3987,6 +4000,25 @@ function URLsAreSameVideo($url1, $url2) {
 function getVideos_id() {
     if (isVideo()) {
         return getVideoIDFromURL(getSelfURI());
+    }
+    return false;
+}
+
+function isVideoOrAudioNotEmbed(){
+    if(!isVideo()){
+        return false;
+    }
+    $videos_id = getVideos_id();
+    if(empty($videos_id)){
+        return false;
+    }
+    $v = Video::getVideoLight($videos_id);
+    if(empty($v)){
+        return false;
+    }
+    $types = array('audio', 'video');
+    if(in_array($v['type'], $types)){
+        return true;
     }
     return false;
 }
@@ -5872,4 +5904,9 @@ function cleanUpRowFromDatabase($row) {
         }
     }
     return $row;
+}
+
+function getImageTransparent1pxURL(){
+    global $global;
+    return "{$global['webSiteRootURL']}view/img/transparent1px.png";
 }
